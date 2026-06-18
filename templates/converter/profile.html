@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Profile - finstatcel{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="text-center mb-3">
+            <div class="auth-icon" style="width: 72px; height: 72px; border-radius: 50%; font-size: 2rem; font-weight: 700; background: var(--accent-gradient); color: #fff;">
+                {{ user.username|first|upper }}
+            </div>
+            <h4 class="fw-bold mb-0">{{ user.username }}</h4>
+            <p class="text-muted small">Member since {{ user.date_joined|date:"F Y" }}</p>
+        </div>
+
+        <div class="card">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center mb-3 pb-3 border-bottom" style="border-color: var(--border-subtle) !important;">
+                    <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(37,99,235,0.1); display: flex; align-items: center; justify-content: center; color: var(--accent-blue); font-size: 1.2rem;">
+                        <i class="bi bi-person"></i>
+                    </div>
+                    <div class="ms-3">
+                        <div class="small text-muted text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.5px;">Username</div>
+                        <div class="fw-semibold" style="color:rgb(230, 224, 224);">{{ user.username }}</div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center mb-3 pb-3 border-bottom" style="border-color: var(--border-subtle) !important;">
+                    <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(37,99,235,0.1); display: flex; align-items: center; justify-content: center; color: var(--accent-blue); font-size: 1.2rem;">
+                        <i class="bi bi-envelope"></i>
+                    </div>
+                    <div class="ms-3">
+                        <div class="small text-muted text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.5px;">Email</div>
+                        <div class="fw-semibold" style="color:rgb(230, 224, 224);">{{ user.email|default:"Not provided" }}</div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(37,99,235,0.1); display: flex; align-items: center; justify-content: center; color: var(--accent-blue); font-size: 1.2rem;">
+                        <i class="bi bi-clock-history"></i>
+                    </div>
+                    <div class="ms-3">
+                        <div class="small text-muted text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.5px;">Last Login</div>
+                        <div class="fw-semibold" style="color:rgb(230, 224, 224);">{{ user.last_login|date:"d M Y, h:i A" }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-grid mt-3">
+            <a href="{% url 'upload' %}" class="btn btn-primary btn-lg">
+                <i class="bi bi-arrow-right me-2"></i>Go to Converter
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

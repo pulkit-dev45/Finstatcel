@@ -1,0 +1,242 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Convert - finstatcel{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 780px;">
+    <div class="text-center mb-4">
+        <div class="auth-icon" style="width: 48px; height: 48px; font-size: 1.3rem;">
+            <i class="bi bi-file-earmark-spreadsheet"></i>
+        </div>
+        <h4 class="fw-bold mb-1">Convert Statement</h4>
+        <p class="text-muted small">Upload your PDF bank statement and download a formatted Excel file</p>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags == 'success' %}success{% else %}info{% endif %} alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
+            <i class="bi bi-{% if message.tags == 'error' %}exclamation-triangle{% elif message.tags == 'success' %}check-circle{% else %}info-circle{% endif %}"></i>
+            <span>{{ message }}</span>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="card">
+        <div class="card-body p-4">
+            <form method="post" enctype="multipart/form-data" id="uploadForm">
+                {% csrf_token %}
+                <div class="mb-4">
+                    <label class="form-label"><i class="bi bi-upload me-1"></i>Upload PDF Statement</label>
+                    <div id="uploadZone" class="upload-zone">
+                        <div class="upload-zone-icon">📂</div>
+                        <h5 class="file-label fw-semibold" style="font-size: 1rem;color:rgb(144, 141, 141)">Drop your PDF here or click to browse</h5>
+                        <p class="text-muted small mb-0">Supports PDF bank statements (.pdf)</p>
+                        <div class="d-none">{{ form.pdf_file }}</div>
+                    </div>
+                    {% if form.pdf_file.errors %}
+                        <div class="text-danger mt-2 small">{{ form.pdf_file.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-4">
+                    <label for="{{ form.bank_name.id_for_label }}" class="form-label">
+                        <i class="bi bi-building me-1"></i>Select Your Bank
+                    </label>
+                    {{ form.bank_name }}
+                </div>
+
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                        <span id="submitText"><i class="bi bi-arrow-repeat me-2"></i>Convert to Excel</span>
+                        <span id="submitSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if upload %}
+    <div class="card mt-4" style="border-color: rgba(16,185,129,0.2);">
+        <div class="card-header d-flex align-items-center gap-2 text-success">
+            <i class="bi bi-check-circle-fill"></i>
+            <span>Conversion Complete</span>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-4 text-center">
+                    <div class="stat-number">{{ row_count }}</div>
+                    <div class="text-muted small">Transactions</div>
+                </div>
+                <div class="col-4 text-center">
+                    <div class="stat-number" style="color: var(--accent-emerald);">✓</div>
+                    <div class="text-muted small">Processed</div>
+                </div>
+                <div class="col-4 text-center">
+                    <div class="stat-number" style="color: var(--accent-amber);">📊</div>
+                    <div class="text-muted small">Excel Ready</div>
+                </div>
+            </div>
+            <div class="d-grid mt-3">
+                <a href="{% url 'download' upload.pk %}" class="btn btn-success btn-lg">
+                    <i class="bi bi-download me-2"></i>Download Excel File
+                </a>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if preview_rows %}
+    <div class="card mt-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-table me-1"></i>Data Preview</span>
+            <span class="badge" style="background: rgba(37,99,235,0.15); color: var(--accent-blue); font-weight: 500;">
+                {{ row_count }} total transactions
+            </span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive preview-wrapper">
+                <table class="table table-dark table-preview mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Particulars</th>
+                            <th>Withdrawn</th>
+                            <th>Deposited</th>
+                            <th>Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in preview_rows %}
+                        <tr>
+                            <td class="fw-medium" style="font-size: 0.8rem;">{{ row.d }}</td>
+                            <td class="text-truncate" style="max-width: 230px; font-size: 0.8rem;" title="{{ row.p }}">{{ row.p }}</td>
+                            <td style="color: {% if row.w > 0 %}#f87171{% else %}#374151{% endif %}; font-weight: {% if row.w > 0 %}600{% else %}400{% endif %};">
+                                {% if row.w > 0 %}{{ row.w|floatformat:2 }}{% else %}-{% endif %}
+                            </td>
+                            <td style="color: {% if row.dep > 0 %}#34d399{% else %}#374151{% endif %}; font-weight: {% if row.dep > 0 %}600{% else %}400{% endif %};">
+                                {% if row.dep > 0 %}{{ row.dep|floatformat:2 }}{% else %}-{% endif %}
+                            </td>
+                            <td class="fw-medium" style="font-size: 0.8rem;">{{ row.b|floatformat:2 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card mt-4">
+        <div class="card-header" style="color:rgb(176, 175, 175)"><i class="bi bi-eye me-1"></i>Output Format</div>
+        <div class="card-body p-0">
+            <div class="table-responsive preview-wrapper">
+                <table class="table table-dark table-preview mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Particulars</th>
+                            <th>Withdrawn</th>
+                            <th>Deposited</th>
+                            <th>Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>01/04/2024</td>
+                            <td>Salary Credit</td>
+                            <td style="color: #374151;">-</td>
+                            <td style="color: #34d399; font-weight: 600;">50,000.00</td>
+                            <td>1,25,000.00</td>
+                        </tr>
+                        <tr>
+                            <td>05/04/2024</td>
+                            <td>ATM Withdrawal</td>
+                            <td style="color: #f87171; font-weight: 600;">10,000.00</td>
+                            <td style="color: #374151;">-</td>
+                            <td>1,15,000.00</td>
+                        </tr>
+                        <tr>
+                            <td>10/04/2024</td>
+                            <td>UPI Payment</td>
+                            <td style="color: #f87171; font-weight: 600;">2,500.00</td>
+                            <td style="color: #374151;">-</td>
+                            <td>1,12,500.00</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var uploadZone = document.getElementById('uploadZone');
+        var fileInput = document.getElementById('id_pdf_file');
+        var submitBtn = document.getElementById('submitBtn');
+        var submitText = document.getElementById('submitText');
+        var submitSpinner = document.getElementById('submitSpinner');
+        var uploadForm = document.getElementById('uploadForm');
+
+        if (uploadForm) {
+            uploadForm.addEventListener('submit', function() {
+                if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                    submitText.innerHTML = 'Processing PDF...';
+                    submitSpinner.classList.remove('d-none');
+                }
+            });
+        }
+
+        if (uploadZone && fileInput) {
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function(evt) {
+                uploadZone.addEventListener(evt, function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                });
+            });
+
+            ['dragenter', 'dragover'].forEach(function(evt) {
+                uploadZone.addEventListener(evt, function() {
+                    uploadZone.classList.add('dragover');
+                });
+            });
+
+            ['dragleave', 'drop'].forEach(function(evt) {
+                uploadZone.addEventListener(evt, function() {
+                    uploadZone.classList.remove('dragover');
+                });
+            });
+
+            uploadZone.addEventListener('drop', function(e) {
+                var files = e.dataTransfer.files;
+                if (files.length) {
+                    fileInput.files = files;
+                    updateFileLabel(files[0].name);
+                }
+            });
+
+            uploadZone.addEventListener('click', function() {
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', function() {
+                if (this.files && this.files[0]) {
+                    updateFileLabel(this.files[0].name);
+                }
+            });
+
+            function updateFileLabel(name) {
+                var label = uploadZone.querySelector('.file-label');
+                var icon = uploadZone.querySelector('.upload-zone-icon');
+                if (label) label.textContent = name;
+                if (icon) icon.textContent = '\uD83D\uDCC4';
+                uploadZone.classList.add('has-file');
+            }
+        }
+    });
+</script>
+{% endblock %}

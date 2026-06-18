@@ -1,0 +1,569 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Finstatcel - PDF to Excel{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
+
+    #three-canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    .hero {
+        position: relative;
+        z-index: 1;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 6rem 1.5rem 4rem;
+    }
+
+    .hero-badge {
+        display: inline-block;
+        padding: 0.35rem 1rem;
+        border-radius: 50px;
+        background: rgba(13, 110, 253, 0.15);
+        border: 1px solid rgba(13, 110, 253, 0.3);
+        color: #6ea8fe;
+        font-size: 0.8rem;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        margin-bottom: 1.5rem;
+    }
+
+    .hero h1 {
+        font-family: 'Inter', sans-serif;
+        font-size: clamp(2.2rem, 6vw, 4.5rem);
+        font-weight: 800;
+        line-height: 1.1;
+        margin-bottom: 1.5rem;
+        background: linear-gradient(135deg, #f8f9fa 0%, #6ea8fe 50%, #0d6efd 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .hero p {
+        font-size: clamp(1rem, 2vw, 1.25rem);
+        color: #9ca3af;
+        max-width: 600px;
+        margin: 0 auto 2rem;
+        line-height: 1.7;
+    }
+
+    .hero-actions {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .hero-actions .btn {
+        padding: 0.75rem 2rem;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .hero-actions .btn-primary {
+        background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+        border: none;
+        box-shadow: 0 4px 25px rgba(13, 110, 253, 0.35);
+    }
+
+    .hero-actions .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 35px rgba(13, 110, 253, 0.5);
+    }
+
+    .hero-actions .btn-outline-light:hover {
+        transform: translateY(-2px);
+    }
+
+    .hero-stats {
+        display: flex;
+        gap: 2.5rem;
+        margin-top: 3rem;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .hero-stats .stat {
+        text-align: center;
+    }
+
+    .hero-stats .stat-num {
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: #f8f9fa;
+    }
+
+    .hero-stats .stat-label {
+        font-size: 0.8rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .hero > * {
+        opacity: 0;
+        animation: slideUp 0.7s ease forwards;
+    }
+    .hero > .hero-badge { animation-delay: 0.1s; }
+    .hero > h1 { animation-delay: 0.25s; }
+    .hero > p { animation-delay: 0.4s; }
+    .hero > .hero-actions { animation-delay: 0.55s; }
+    .hero > .hero-stats { animation-delay: 0.7s; }
+
+    @keyframes slideUp {
+        0% { opacity: 0; transform: translateY(30px); }
+        100% { opacity: 1; transform: translateY(0); }
+    }
+
+    .scroll-indicator {
+        position: absolute;
+        bottom: 2rem;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #6c757d;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        animation: bounce 2s infinite;
+    }
+
+    .scroll-indicator i {
+        display: block;
+        font-size: 1.25rem;
+        margin-top: 0.25rem;
+    }
+
+    @keyframes bounce {
+        0%, 20%, 50%, 80%, 100% { transform: translateX(-50%) translateY(0); }
+        40% { transform: translateX(-50%) translateY(-8px); }
+        60% { transform: translateX(-50%) translateY(-4px); }
+    }
+
+    .section {
+        position: relative;
+        z-index: 1;
+        padding: 5rem 1.5rem;
+    }
+
+    .section h2 {
+        font-family: 'Inter', sans-serif;
+        font-size: clamp(1.75rem, 4vw, 2.75rem);
+        font-weight: 700;
+        text-align: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .section .subtitle {
+        text-align: center;
+        color: #9ca3af;
+        max-width: 500px;
+        margin: 0 auto 3rem;
+    }
+
+    .feature-card {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 16px;
+        padding: 2rem;
+        transition: all 0.4s ease;
+        height: 100%;
+    }
+
+    .feature-card:hover {
+        background: rgba(255,255,255,0.06);
+        border-color: rgba(13, 110, 253, 0.3);
+        transform: translateY(-4px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    }
+
+    .feature-card .icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 1.25rem;
+        background: rgba(13, 110, 253, 0.1);
+        color: #6ea8fe;
+    }
+
+    .feature-card h5 {
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+    }
+
+    .feature-card p {
+        color: #9ca3af;
+        font-size: 0.9rem;
+        margin-bottom: 0;
+    }
+
+    .banks-section {
+        background: rgba(255,255,255,0.02);
+        border-top: 1px solid rgba(255,255,255,0.05);
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .bank-pill {
+        display: inline-block;
+        padding: 0.4rem 1.1rem;
+        border-radius: 50px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        font-size: 0.85rem;
+        color: #ced4da;
+        margin: 0.25rem;
+        transition: all 0.3s ease;
+    }
+
+    .bank-pill:hover {
+        background: rgba(13, 110, 253, 0.1);
+        border-color: rgba(13, 110, 253, 0.3);
+        color: #6ea8fe;
+    }
+
+    .cta-section {
+        position: relative;
+        z-index: 1;
+        text-align: center;
+        padding: 5rem 1.5rem;
+    }
+
+    .cta-section h2 {
+        font-family: 'Inter', sans-serif;
+        font-size: clamp(1.75rem, 4vw, 2.5rem);
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+
+    .cta-section p {
+        color: #9ca3af;
+        max-width: 500px;
+        margin: 0 auto 2rem;
+    }
+
+    .cta-section .btn {
+        padding: 0.85rem 2.5rem;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 1.05rem;
+        background: linear-gradient(135deg, #0d6efd, #0b5ed7);
+        border: none;
+        box-shadow: 0 4px 25px rgba(13, 110, 253, 0.35);
+        transition: all 0.3s ease;
+    }
+
+    .cta-section .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 35px rgba(13, 110, 253, 0.5);
+    }
+
+    .fade-up {
+        opacity: 0;
+        transform: translateY(40px);
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div id="three-canvas"></div>
+
+<section class="hero">
+    <div class="hero-badge">PDF &rarr; Excel Converter</div>
+    <h1>Transform Bank Statements<br>Into Actionable Data</h1>
+    <p>Upload your PDF bank statement from any Indian bank and get a clean, formatted Excel spreadsheet with all transactions in seconds.</p>
+    <div class="hero-actions">
+        <a href="{% if user.is_authenticated %}{% url 'upload' %}{% else %}{% url 'register' %}{% endif %}" class="btn btn-primary btn-lg">
+            <i class="bi bi-arrow-right me-2"></i>Get Started
+        </a>
+        <a href="#features" class="btn btn-outline-light btn-lg">Learn More</a>
+    </div>
+    <div class="hero-stats">
+        <div class="stat">
+            <div class="stat-num">10+</div>
+            <div class="stat-label">Banks Supported</div>
+        </div>
+        <div class="stat">
+            <div class="stat-num">&lt;3s</div>
+            <div class="stat-label">Avg Processing</div>
+        </div>
+        <div class="stat">
+            <div class="stat-num">99.9%</div>
+            <div class="stat-label">Accuracy</div>
+        </div>
+    </div>
+    <div class="scroll-indicator">
+        
+        <i class="bi bi-chevron-down"></i>
+    </div>
+</section>
+
+<section id="features" class="section">
+    <div class="container">
+        <h2 class="fade-up">Why Finstatcel?</h2>
+        <p class="subtitle fade-up">Built for speed, accuracy, and simplicity. No manual data entry required.</p>
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-3 fade-up">
+                <div class="feature-card">
+                    <div class="icon"><i class="bi bi-currency-rupee"></i></div>
+                    <h5>All Indian Banks</h5>
+                    <p>Supports SBI, Axis, HDFC, ICICI, Kotak, PNB, BOB, Canara, UCO and more.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3 fade-up">
+                <div class="feature-card">
+                    <div class="icon"><i class="bi bi-lightning-fill"></i></div>
+                    <h5>Lightning Fast</h5>
+                    <p>Processes hundreds of transactions in under 3 seconds with smart parsing.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3 fade-up">
+                <div class="feature-card">
+                    <div class="icon"><i class="bi bi-file-earmark-excel"></i></div>
+                    <h5>Clean Excel Output</h5>
+                    <p>Professionally formatted Excel with Date, Particulars, Withdrawal, Deposit, and Balance.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3 fade-up">
+                <div class="feature-card">
+                    <div class="icon"><i class="bi bi-shield-check"></i></div>
+                    <h5>Secure &amp; Private</h5>
+                    <p>Your data stays between you and your download. No storage, no sharing.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="section banks-section">
+    <div class="container text-center">
+        <h2 class="fade-up">Supported Banks</h2>
+        <p class="subtitle fade-up">Optimized parsing for major Indian banks with automatic detection.</p>
+        <div class="fade-up">
+            <span class="bank-pill">State Bank of India</span>
+            <span class="bank-pill">Axis Bank</span>
+            <span class="bank-pill">HDFC Bank</span>
+            <span class="bank-pill">ICICI Bank</span>
+            <span class="bank-pill">Kotak Mahindra</span>
+            <span class="bank-pill">Punjab National Bank</span>
+            <span class="bank-pill">Bank of Baroda</span>
+            <span class="bank-pill">Canara Bank</span>
+            <span class="bank-pill">UCO Bank</span>
+            <span class="bank-pill">And more...</span>
+        </div>
+    </div>
+</section>
+
+<section id="how-it-works" class="section">
+    <div class="container">
+        <h2 class="fade-up">How It Works</h2>
+        <p class="subtitle fade-up">Three simple steps to convert your statement.</p>
+        <div class="row g-4 mt-2">
+            <div class="col-md-4 fade-up">
+                <div class="text-center">
+                    <div class="display-4 fw-bold text-primary mb-2" style="font-family:'Inter',sans-serif;">1</div>
+                    <h5>Upload PDF</h5>
+                    <p class="text-secondary">Select your bank statement PDF and choose your bank from the dropdown.</p>
+                </div>
+            </div>
+            <div class="col-md-4 fade-up">
+                <div class="text-center">
+                    <div class="display-4 fw-bold text-primary mb-2" style="font-family:'Inter',sans-serif;">2</div>
+                    <h5>Auto-Process</h5>
+                    <p class="text-secondary">Our parser extracts all transactions with bank-specific column mapping.</p>
+                </div>
+            </div>
+            <div class="col-md-4 fade-up">
+                <div class="text-center">
+                    <div class="display-4 fw-bold text-primary mb-2" style="font-family:'Inter',sans-serif;">3</div>
+                    <h5>Download Excel</h5>
+                    <p class="text-secondary">Get a polished Excel file ready for analysis, accounting, or sharing.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="cta-section border-top border-secondary">
+    <div class="container">
+        <h2 class="fade-up">Ready to Simplify Your Workflow?</h2>
+        <p class="fade-up">Stop manual data entry. Start converting PDF bank statements to Excel in seconds.</p>
+        <div class="fade-up">
+            <a href="{% if user.is_authenticated %}{% url 'upload' %}{% else %}{% url 'register' %}{% endif %}" class="btn btn-primary btn-lg">
+                <i class="bi bi-arrow-right me-2"></i>Get Started Now
+            </a>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+gsap.registerPlugin(ScrollTrigger);
+
+// ── Three.js Background ──
+(function initThree() {
+    const canvas = document.getElementById('three-canvas');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    canvas.appendChild(renderer.domElement);
+
+    const particlesGeo = new THREE.BufferGeometry();
+    const count = 600;
+    const positions = new Float32Array(count * 3);
+    for (let i = 0; i < count * 3; i++) {
+        positions[i] = (Math.random() - 0.5) * 30;
+    }
+    particlesGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    const texture = (() => {
+        const c = document.createElement('canvas'); c.width = 8; c.height = 8;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#6ea8fe';
+        ctx.beginPath(); ctx.arc(4, 4, 2, 0, Math.PI * 2); ctx.fill();
+        return new THREE.CanvasTexture(c);
+    })();
+
+    const particlesMat = new THREE.PointsMaterial({
+        size: 0.08,
+        map: texture,
+        transparent: true,
+        opacity: 0.6,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+    });
+
+    const particlesMesh = new THREE.Points(particlesGeo, particlesMat);
+    scene.add(particlesMesh);
+
+    // Small floating shapes
+    const shapes = [];
+    const shapeGeos = [
+        new THREE.BoxGeometry(0.08, 0.08, 0.08),
+        new THREE.IcosahedronGeometry(0.06, 0),
+        new THREE.TorusGeometry(0.06, 0.02, 6, 12),
+    ];
+    for (let i = 0; i < 30; i++) {
+        const mat = new THREE.MeshBasicMaterial({
+            color: new THREE.Color().setHSL(0.58 + Math.random() * 0.08, 0.6, 0.5 + Math.random() * 0.3),
+            transparent: true,
+            opacity: 0.15 + Math.random() * 0.25,
+        });
+        const m = new THREE.Mesh(shapeGeos[i % 3], mat);
+        m.position.set((Math.random() - 0.5) * 25, (Math.random() - 0.5) * 25, (Math.random() - 0.5) * 15 - 5);
+        m.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+        scene.add(m);
+        shapes.push(m);
+    }
+
+    camera.position.z = 12;
+
+    let mouseX = 0, mouseY = 0;
+    document.addEventListener('mousemove', e => {
+        mouseX = (e.clientX / window.innerWidth) * 2 - 1;
+        mouseY = -(e.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    function animate() {
+        requestAnimationFrame(animate);
+        particlesMesh.rotation.x += 0.0003;
+        particlesMesh.rotation.y += 0.0005;
+        shapes.forEach((s, i) => {
+            s.rotation.x += 0.005 + i * 0.001;
+            s.rotation.y += 0.008 + i * 0.001;
+            s.position.y += Math.sin(Date.now() * 0.0005 + i) * 0.001;
+        });
+        camera.position.x += (mouseX * 2 - camera.position.x) * 0.02;
+        camera.position.y += (mouseY * 1.5 - camera.position.y) * 0.02;
+        camera.lookAt(scene.position);
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+})();
+
+// ── GSAP Scroll Animations ──
+document.addEventListener('DOMContentLoaded', () => {
+    gsap.utils.toArray('.fade-up').forEach(el => {
+        gsap.fromTo(el, 
+            { y: 50, opacity: 0 },
+            {
+                y: 0, opacity: 1,
+                duration: 0.8,
+                ease: 'power3.out',
+                scrollTrigger: {
+                    trigger: el,
+                    start: 'top 85%',
+                    toggleActions: 'play none none none',
+                },
+            }
+        );
+    });
+
+    // Staggered feature cards
+    gsap.utils.toArray('.feature-card').forEach((el, i) => {
+        gsap.fromTo(el,
+            { y: 40, opacity: 0 },
+            {
+                y: 0, opacity: 1,
+                duration: 0.6,
+                delay: i * 0.1,
+                ease: 'power2.out',
+                scrollTrigger: {
+                    trigger: el.closest('.row'),
+                    start: 'top 80%',
+                },
+            }
+        );
+    });
+
+    // Bank pills stagger
+    gsap.fromTo('.bank-pill',
+        { opacity: 0, scale: 0.8 },
+        {
+            opacity: 1, scale: 1,
+            duration: 0.4,
+            stagger: 0.03,
+            ease: 'back.out(1.7)',
+            scrollTrigger: {
+                trigger: '.banks-section',
+                start: 'top 75%',
+            },
+        }
+    );
+});
+</script>
+{% endblock %}
