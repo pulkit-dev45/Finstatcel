@@ -3,6 +3,38 @@
 
 {% block title %}Convert - finstatcel{% endblock %}
 
+{% block extra_head %}
+<style>
+    .conversion-stats {
+        background: linear-gradient(135deg, rgba(16,185,129,0.05), rgba(37,99,235,0.03));
+        border-radius: 12px;
+        margin: 0.75rem;
+    }
+    .conversion-stats .stat-number {
+        font-size: 1.6rem;
+        font-weight: 700;
+    }
+    .conversion-stats hr {
+        opacity: 0.15;
+    }
+    #successAlert {
+        animation: slideDown 0.3s ease;
+    }
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    #processingCard .card-header .text-warning {
+        font-size: 0.8rem;
+        animation: pulse-warn 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-warn {
+        0%, 100% { opacity: 0.6; }
+        50% { opacity: 1; }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container py-5" style="max-width: 780px;">
     <div class="text-center mb-4">
@@ -105,9 +137,11 @@
 
     <div id="resultArea" style="display:none;"></div>
 
-    {% if not processing %}
-    <div class="card mt-4" id="previewPlaceholder">
-        <div class="card-header" style="color:rgb(176, 175, 175)"><i class="bi bi-eye me-1"></i>Output Format</div>
+    <div class="card mt-4" id="previewPlaceholder" {% if processing %}style="display:none;"{% endif %}>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-eye me-1"></i>Output Format</span>
+            <span id="previewBadge" class="badge d-none" style="background: rgba(37,99,235,0.15); color: var(--accent-blue); font-weight: 500;"></span>
+        </div>
         <div class="card-body p-0">
             <div class="table-responsive preview-wrapper">
                 <table class="table table-dark table-preview mb-0">
@@ -120,7 +154,7 @@
                             <th>Balance</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="previewBody">
                         <tr>
                             <td>01/04/2024</td>
                             <td>Salary Credit</td>
@@ -147,7 +181,6 @@
             </div>
         </div>
     </div>
-    {% endif %}
 </div>
 {% endblock %}
 
@@ -250,31 +283,25 @@
             document.getElementById('downloadLink').href = data.download_url;
             document.getElementById('conversionComplete').classList.remove('d-none');
 
-            document.getElementById('previewPlaceholder').style.display = 'none';
-
-            var area = document.getElementById('resultArea');
+            var previewBody = document.getElementById('previewBody');
+            var previewBadge = document.getElementById('previewBadge');
+            previewBody.innerHTML = '';
             if (data.preview_rows && data.preview_rows.length > 0) {
-                var html = '<div class="card mt-4"><div class="card-header d-flex justify-content-between align-items-center">' +
-                    '<span><i class="bi bi-table me-1"></i>Data Preview</span>' +
-                    '<span class="badge" style="background: rgba(37,99,235,0.15); color: var(--accent-blue); font-weight: 500;">' +
-                    data.row_count + ' total transactions</span></div>' +
-                    '<div class="card-body p-0"><div class="table-responsive preview-wrapper">' +
-                    '<table class="table table-dark table-preview mb-0"><thead><tr>' +
-                    '<th>Date</th><th>Particulars</th><th>Withdrawn</th><th>Deposited</th><th>Balance</th>' +
-                    '</tr></thead><tbody>';
+                previewBadge.textContent = data.row_count + ' total transactions';
+                previewBadge.classList.remove('d-none');
                 for (var i = 0; i < data.preview_rows.length; i++) {
                     var r = data.preview_rows[i];
-                    html += '<tr><td class="fw-medium" style="font-size: 0.8rem;">' + r.d + '</td>' +
-                        '<td class="text-truncate" style="max-width: 230px; font-size: 0.8rem;" title="' + r.p + '">' + r.p + '</td>' +
+                    var tr = document.createElement('tr');
+                    tr.innerHTML = '<td class="fw-medium" style="font-size: 0.8rem;">' + r.d + '</td>' +
+                        '<td class="text-truncate" style="max-width: 230px; font-size: 0.8rem;" title="' + r.p.replace(/"/g, '&quot;') + '">' + r.p + '</td>' +
                         '<td style="color: ' + (r.w > 0 ? '#f87171' : '#374151') + '; font-weight: ' + (r.w > 0 ? '600' : '400') + ';">' +
                         (r.w > 0 ? r.w.toFixed(2) : '-') + '</td>' +
                         '<td style="color: ' + (r.dep > 0 ? '#34d399' : '#374151') + '; font-weight: ' + (r.dep > 0 ? '600' : '400') + ';">' +
                         (r.dep > 0 ? r.dep.toFixed(2) : '-') + '</td>' +
-                        '<td class="fw-medium" style="font-size: 0.8rem;">' + (typeof r.b === 'number' ? r.b.toFixed(2) : r.b) + '</td></tr>';
+                        '<td class="fw-medium" style="font-size: 0.8rem;">' + (typeof r.b === 'number' ? r.b.toFixed(2) : r.b) + '</td>';
+                    previewBody.appendChild(tr);
                 }
-                html += '</tbody></table></div></div></div>';
-                area.innerHTML = html;
-                area.style.display = 'block';
+                document.getElementById('previewPlaceholder').style.display = 'block';
             }
         }
 
