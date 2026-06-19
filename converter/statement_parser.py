@@ -6,7 +6,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 DATE_AT_START = re.compile(
-    r'^(\d{2}[/-]\d{2}[/-]\d{2,4}|\d{2}[/-][A-Za-z]{3,9}[/-]\d{2,4})\s+(.*)',
+    r'^(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}|\d{1,2}[/-][A-Za-z]{3,9}[/-]\d{2,4})\s+(.*)',
     re.IGNORECASE
 )
 
@@ -33,6 +33,68 @@ BANK_HEADERS = {
         'balance': ['balance', 'closing balance', 'available balance'],
         'amount': ['amount'],
         'drcr': ['debit/credit', 'dr/cr', 'drcr'],
+    },
+    'icici': {
+        'date': ['date', 'txn date', 'transaction date', 'value date'],
+        'particulars': ['particulars', 'narration', 'description', 'transaction details',
+                        'remarks', 'chq/ref no', 'chq no', 'cheque no', 'ref no'],
+        'withdrawal': ['withdrawal', 'withdrawn', 'debit', 'dr'],
+        'deposit': ['deposit', 'deposited', 'credit', 'cr'],
+        'balance': ['balance', 'closing balance'],
+    },
+    'hdfc': {
+        'date': ['date', 'txn date', 'transaction date', 'value date', 'posting date'],
+        'particulars': ['particulars', 'narration', 'description', 'transaction details',
+                        'remarks', 'chq no', 'cheque no', 'cheque number'],
+        'withdrawal': ['debit', 'dr', 'withdrawal', 'withdrawn', 'debit amount'],
+        'deposit': ['credit', 'cr', 'deposit', 'deposited', 'credit amount'],
+        'balance': ['balance', 'closing balance'],
+    },
+    'kotak': {
+        'date': ['date', 'txn date', 'transaction date', 'value date'],
+        'particulars': ['particulars', 'narration', 'description', 'transaction details',
+                        'remarks', 'chq no', 'cheque no'],
+        'withdrawal': ['withdrawal', 'withdrawn', 'debit', 'dr'],
+        'deposit': ['deposit', 'deposited', 'credit', 'cr'],
+        'balance': ['balance', 'closing balance'],
+    },
+    'pnb': {
+        'date': ['date', 'txn date', 'transaction date', 'value date'],
+        'particulars': ['particulars', 'narration', 'description', 'transaction details', 'remarks'],
+        'withdrawal': ['debit', 'dr', 'withdrawal', 'withdrawn'],
+        'deposit': ['credit', 'cr', 'deposit', 'deposited'],
+        'balance': ['balance', 'closing balance'],
+    },
+    'bob': {
+        'date': ['date', 'txn date', 'transaction date', 'value date', 'posting date'],
+        'particulars': ['particulars', 'narration', 'description', 'transaction details',
+                        'remarks', 'chq no', 'ref no'],
+        'withdrawal': ['withdrawal', 'withdrawn', 'debit', 'dr', 'debit amount'],
+        'deposit': ['deposit', 'deposited', 'credit', 'cr', 'credit amount'],
+        'balance': ['balance', 'closing balance', 'available balance'],
+    },
+    'canara': {
+        'date': ['date', 'txn date', 'transaction date', 'value date'],
+        'particulars': ['particulars', 'narration', 'description', 'transaction details', 'remarks'],
+        'withdrawal': ['debit', 'dr', 'withdrawal', 'withdrawn'],
+        'deposit': ['credit', 'cr', 'deposit', 'deposited'],
+        'balance': ['balance', 'closing balance'],
+    },
+    'federal': {
+        'date': ['date', 'txn date', 'transaction date', 'value date'],
+        'particulars': ['particulars', 'narration', 'description', 'transaction details',
+                        'remarks', 'chq/ref no', 'ref no'],
+        'withdrawal': ['debit', 'dr', 'withdrawal', 'withdrawn'],
+        'deposit': ['credit', 'cr', 'deposit', 'deposited'],
+        'balance': ['balance', 'closing balance'],
+    },
+    'indusind': {
+        'date': ['date', 'txn date', 'transaction date', 'value date', 'posting date'],
+        'particulars': ['particulars', 'narration', 'description', 'transaction details',
+                        'remarks', 'chq no', 'ref no'],
+        'withdrawal': ['debit', 'dr', 'withdrawal', 'withdrawn', 'debit amount'],
+        'deposit': ['credit', 'cr', 'deposit', 'deposited', 'credit amount'],
+        'balance': ['balance', 'closing balance', 'available balance'],
     },
 }
 DEFAULT_HEADERS = {
@@ -66,7 +128,11 @@ def _is_header(text):
 
 def _parse_num(text):
     try:
-        return float(re.sub(r'[^\d.]', '', text))
+        cleaned = re.sub(r'[^\d.,]', '', text)
+        cleaned = cleaned.replace(',', '')
+        if not cleaned or cleaned == '.':
+            return None
+        return float(cleaned)
     except ValueError:
         return None
 
@@ -90,25 +156,32 @@ def _map_headers(row, bank):
     return mapping
 
 
+def _find_header_row(table, bank):
+    for row_idx, row in enumerate(table):
+        mapping = _map_headers([str(c or '') for c in row], bank)
+        if 'date' in mapping and 'balance' in mapping:
+            return row_idx, mapping
+    return None, None
+
+
 def try_table(pdf_path, bank):
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:
             for table in page.extract_tables():
                 if len(table) < 2:
                     continue
-                mapping = _map_headers([str(c or '') for c in table[0]], bank)
-                if 'date' not in mapping or 'balance' not in mapping:
+                header_row_idx, mapping = _find_header_row(table, bank)
+                if mapping is None:
                     continue
                 wi = mapping.get('withdrawal', -1)
                 depi = mapping.get('deposit', -1)
                 ami = mapping.get('amount', -1)
-                # Combined DR/CR column: same index, or one is missing + amount exists
                 has_w = wi >= 0
                 has_d = depi >= 0
                 combined_drcr = ami >= 0 and (wi == depi or has_w != has_d)
 
                 rows = []
-                for row in table[1:]:
+                for row in table[header_row_idx + 1:]:
                     try:
                         di = mapping['date']
                         d = str(row[di]).strip() if di < len(row) else ''
@@ -118,8 +191,11 @@ def try_table(pdf_path, bank):
                         b = str(row[bi]).strip() if bi < len(row) else ''
                     except (IndexError, KeyError):
                         continue
-                    if not re.match(r'\d{2}[/-]\d{2}[/-]\d{2,4}', d):
+                    d = re.sub(r'(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}).*', r'\1', d)
+                    if not re.match(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', d):
                         continue
+                    p = p.replace('\n', ', ').replace('\r', ', ')
+                    p = re.sub(r'\s+', ' ', p).strip()
                     if combined_drcr:
                         raw_amt = str(row[ami]).strip() if ami < len(row) else ''
                         raw_flag = str(row[wi]).strip().lower() if wi < len(row) else ''
@@ -145,8 +221,10 @@ def try_table(pdf_path, bank):
 
 def _get_numbers(text):
     text = re.sub(r'\d{8,}', ' ', text)
-    text = re.sub(r'\b\d{2}[/-]\d{2}[/-]\d{2,4}\b', ' ', text)
-    text = re.sub(r'\b\d{2}[/-][A-Za-z]{3,9}[/-]\d{2,4}\b', ' ', text)
+    text = re.sub(r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b', ' ', text)
+    text = re.sub(r'\b\d{1,2}[/-][A-Za-z]{3,9}[/-]\d{2,4}\b', ' ', text)
+    text = re.sub(r'\b\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}\b', ' ', text)
+    text = re.sub(r'\b\d{1,2}:\d{2}(:\d{2})?\b', ' ', text)
     combined = re.finditer(r'[\d,]+\.\d+|(?<!\d)\d{1,7}(?!\d)', text)
     raw_nums = []
     for m in combined:

@@ -16,6 +16,8 @@ BANK_CHOICES = [
     ('bob', 'Bank of Baroda'),
     ('canara', 'Canara Bank'),
     ('uco', 'UCO Bank'),
+    ('federal', 'Federal Bank'),
+    ('indusind', 'IndusInd Bank'),
     ('other', 'Other Bank'),
 ]
 

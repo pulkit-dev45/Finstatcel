@@ -22,7 +22,7 @@
         </div>
         {% endfor %}
     {% endif %}
-
+    <div id="resultArea" style="display:none;"></div>
     <div class="card" id="uploadCard" {% if processing %}style="display:none;"{% endif %}>
         <div class="card-body p-4">
             <form method="post" enctype="multipart/form-data" id="uploadForm">
@@ -71,7 +71,7 @@
     </div>
     {% endif %}
 
-    <div id="resultArea" style="display:none;"></div>
+    
 
     {% if not processing %}
     <div class="card mt-4" id="previewPlaceholder">
