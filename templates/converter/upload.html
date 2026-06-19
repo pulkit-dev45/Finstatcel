@@ -22,8 +22,39 @@
         </div>
         {% endfor %}
     {% endif %}
-    <div id="resultArea" style="display:none;"></div>
+
     <div class="card" id="uploadCard" {% if processing %}style="display:none;"{% endif %}>
+        <div id="successAlert" class="alert alert-success alert-dismissible fade d-none align-items-center gap-2 m-3 mb-0" role="alert">
+            <i class="bi bi-check-circle-fill fs-5"></i>
+            <span id="successMsg">PDF Parsed Successfully!</span>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+
+        <div id="conversionComplete" class="d-none">
+            <div class="conversion-stats">
+                <div class="row g-2 p-3 pb-0">
+                    <div class="col-4 text-center">
+                        <div class="stat-number" id="totalTxns">0</div>
+                        <div class="text-muted small">Transactions</div>
+                    </div>
+                    <div class="col-4 text-center">
+                        <div class="stat-number" style="color: var(--accent-emerald);">✓</div>
+                        <div class="text-muted small">Processed</div>
+                    </div>
+                    <div class="col-4 text-center">
+                        <div class="stat-number" style="color: var(--accent-amber);">📊</div>
+                        <div class="text-muted small">Excel Ready</div>
+                    </div>
+                </div>
+                <div class="d-grid px-3 pb-3">
+                    <a id="downloadLink" href="#" class="btn btn-success btn-lg">
+                        <i class="bi bi-download me-2"></i>Download Excel File
+                    </a>
+                </div>
+            </div>
+            <hr class="my-0">
+        </div>
+
         <div class="card-body p-4">
             <form method="post" enctype="multipart/form-data" id="uploadForm">
                 {% csrf_token %}
@@ -62,6 +93,7 @@
         <div class="card-header d-flex align-items-center gap-2" style="color: var(--accent-amber);">
             <div class="spinner-border spinner-border-sm" role="status"></div>
             <span>Processing PDF...</span>
+            <small class="text-warning ms-3 fw-bold">⚠ Do not close this tab</small>
         </div>
         <div class="card-body text-center py-5">
             <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status"></div>
@@ -71,7 +103,7 @@
     </div>
     {% endif %}
 
-    
+    <div id="resultArea" style="display:none;"></div>
 
     {% if not processing %}
     <div class="card mt-4" id="previewPlaceholder">
@@ -205,27 +237,24 @@
         function showResults(data) {
             document.getElementById('processingCard').style.display = 'none';
             document.getElementById('uploadCard').style.display = 'block';
+
+            var alertEl = document.getElementById('successAlert');
+            alertEl.classList.remove('d-none');
+            alertEl.classList.add('show');
+            setTimeout(function() {
+                var bsAlert = new bootstrap.Alert(alertEl);
+                bsAlert.close();
+            }, 4000);
+
+            document.getElementById('totalTxns').textContent = data.row_count;
+            document.getElementById('downloadLink').href = data.download_url;
+            document.getElementById('conversionComplete').classList.remove('d-none');
+
+            document.getElementById('previewPlaceholder').style.display = 'none';
+
             var area = document.getElementById('resultArea');
-            var html = '<div class="card mt-4" style="border-color: rgba(16,185,129,0.2);">' +
-                '<div class="card-header d-flex align-items-center gap-2 text-success">' +
-                '<i class="bi bi-check-circle-fill"></i>' +
-                '<span>Conversion Complete</span></div>' +
-                '<div class="card-body">' +
-                '<div class="row g-3">' +
-                '<div class="col-4 text-center">' +
-                '<div class="stat-number">' + data.row_count + '</div>' +
-                '<div class="text-muted small">Transactions</div></div>' +
-                '<div class="col-4 text-center">' +
-                '<div class="stat-number" style="color: var(--accent-emerald);">✓</div>' +
-                '<div class="text-muted small">Processed</div></div>' +
-                '<div class="col-4 text-center">' +
-                '<div class="stat-number" style="color: var(--accent-amber);">📊</div>' +
-                '<div class="text-muted small">Excel Ready</div></div></div>' +
-                '<div class="d-grid mt-3">' +
-                '<a href="' + data.download_url + '" class="btn btn-success btn-lg">' +
-                '<i class="bi bi-download me-2"></i>Download Excel File</a></div></div></div>';
             if (data.preview_rows && data.preview_rows.length > 0) {
-                html += '<div class="card mt-4"><div class="card-header d-flex justify-content-between align-items-center">' +
+                var html = '<div class="card mt-4"><div class="card-header d-flex justify-content-between align-items-center">' +
                     '<span><i class="bi bi-table me-1"></i>Data Preview</span>' +
                     '<span class="badge" style="background: rgba(37,99,235,0.15); color: var(--accent-blue); font-weight: 500;">' +
                     data.row_count + ' total transactions</span></div>' +
@@ -244,9 +273,9 @@
                         '<td class="fw-medium" style="font-size: 0.8rem;">' + (typeof r.b === 'number' ? r.b.toFixed(2) : r.b) + '</td></tr>';
                 }
                 html += '</tbody></table></div></div></div>';
+                area.innerHTML = html;
+                area.style.display = 'block';
             }
-            area.innerHTML = html;
-            area.style.display = 'block';
         }
 
         function showError() {

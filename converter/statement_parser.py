@@ -6,7 +6,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 DATE_AT_START = re.compile(
-    r'^(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}|\d{1,2}[/-][A-Za-z]{3,9}[/-]\d{2,4})\s+(.*)',
+    r'^(?:\d{1,3}\s+)?(\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}|\d{1,2}[./-][A-Za-z]{3,9}[./-]\d{2,4})\s+(.*)',
     re.IGNORECASE
 )
 
@@ -15,6 +15,8 @@ HEADER_LINE_KEYWORDS = [
     'address', 'period', 'page', 'summary', 'opening', 'closing',
     'statement of account', 'generated on', 'printed on', 'statement for',
     'ref no', 'mobile no', 'email', 'a/c type', 'a/c no',
+    'legend', 'system generated', 'never share your',
+    'www.', 'dial your bank',
 ]
 
 BANK_HEADERS = {
@@ -244,6 +246,11 @@ def _get_numbers(text):
     return nums
 
 
+SKIP_LINES = {
+    'credit trxn', 'debit trxn', 'fund transfer', 'idirect trxn', 'nach trxn',
+}
+
+
 def try_text(pdf_path):
     lines = []
     with pdfplumber.open(pdf_path) as pdf:
@@ -254,10 +261,19 @@ def try_text(pdf_path):
 
     transactions = []
     prev_bal = None
+    drcr_flag = None
 
     for line in lines:
         raw = line.strip()
         if not raw or _is_header(raw):
+            continue
+
+        low = raw.lower()
+        if low in SKIP_LINES:
+            if 'credit' in low and 'trxn' in low:
+                drcr_flag = 'credit'
+            elif 'debit' in low and 'trxn' in low:
+                drcr_flag = 'debit'
             continue
 
         m = DATE_AT_START.match(raw)
@@ -284,8 +300,10 @@ def try_text(pdf_path):
             'balance': balance,
             'amounts': amounts,
             'prev_bal': prev_bal,
+            'drcr': drcr_flag,
         })
         prev_bal = balance
+        drcr_flag = None
 
         parts_text = rest
         parts_text = re.sub(r'[\d,]+(?:\.\d+)?', ' ', parts_text)
@@ -302,10 +320,17 @@ def _resolve_amounts(transactions):
         amounts = txn['amounts']
         balance = txn['balance']
         prev_bal = txn['prev_bal']
+        drcr = txn.get('drcr')
         w = 0.0
         d = 0.0
 
-        if len(amounts) == 1:
+        if drcr == 'credit':
+            if amounts:
+                d = amounts[0] if len(amounts) == 1 else amounts[1]
+        elif drcr == 'debit':
+            if amounts:
+                w = amounts[0] if len(amounts) == 1 else amounts[1]
+        elif len(amounts) == 1:
             amt = amounts[0]
             if prev_bal is not None:
                 diff = balance - prev_bal
@@ -386,6 +411,8 @@ def _make_df(rows):
     df = pd.DataFrame(rows)
     if df.empty:
         return df
+    if 'Date' in df.columns:
+        df['Date'] = df['Date'].str.replace('.', '/', regex=False)
     df = df.drop_duplicates(subset=['Date', 'Balance'])
     df = df.reset_index(drop=True)
     return df
