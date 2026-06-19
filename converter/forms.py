@@ -2,6 +2,7 @@ import re
 from django import forms
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib.auth import get_user_model
+from django.forms.models import BaseModelForm
 
 User = get_user_model()
 
@@ -79,6 +80,9 @@ class RegisterForm(UserCreationForm):
         if len(password) < 8:
             raise forms.ValidationError('Password must be at least 8 characters.')
         return password
+
+    def _post_clean(self):
+        BaseModelForm._post_clean(self)
 
     def clean(self):
         cleaned_data = super().clean()

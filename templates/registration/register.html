@@ -28,9 +28,6 @@
                             <i class="bi bi-person me-1"></i>Username
                         </label>
                         {{ form.username }}
-                        {% if form.username.help_text %}
-                        <div class="form-text mt-1">{{ form.username.help_text }}</div>
-                        {% endif %}
                         <div class="text-danger small mt-1" id="usernameError">{% if form.username.errors %}{{ form.username.errors.0 }}{% endif %}</div>
                     </div>
 

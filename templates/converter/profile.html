@@ -40,7 +40,7 @@
                     </div>
                     <div class="ms-3">
                         <div class="small text-muted text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.5px;">Last Login</div>
-                        <div class="fw-semibold" style="color:rgb(230, 224, 224);">{{ user.last_login|date:"d M Y, h:i A" }}</div>
+                        <div class="fw-semibold" style="color:rgb(230, 224, 224);">{{ user.last_login|date:"d M Y, h:i A"|default:"N/A" }}</div>
                     </div>
                 </div>
             </div>

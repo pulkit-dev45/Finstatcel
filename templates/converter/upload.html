@@ -61,6 +61,11 @@
             <span id="successMsg">PDF Parsed Successfully!</span>
             <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
+        <div id="errorAlert" class="alert alert-danger alert-dismissible fade d-none align-items-center gap-2 m-3 mb-0" role="alert">
+            <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+            <span id="errorMsg">Could not extract any transaction data from this PDF.</span>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
 
         <div id="conversionComplete" class="d-none">
             <div class="conversion-stats">
@@ -134,8 +139,6 @@
         </div>
     </div>
     {% endif %}
-
-    <div id="resultArea" style="display:none;"></div>
 
     <div class="card mt-4" id="previewPlaceholder" {% if processing %}style="display:none;"{% endif %}>
         <div class="card-header d-flex justify-content-between align-items-center">
@@ -308,11 +311,13 @@
         function showError() {
             document.getElementById('processingCard').style.display = 'none';
             document.getElementById('uploadCard').style.display = 'block';
-            var area = document.getElementById('resultArea');
-            area.innerHTML = '<div class="alert alert-danger mt-4 d-flex align-items-center gap-2">' +
-                '<i class="bi bi-exclamation-triangle"></i>' +
-                '<span>Could not extract any transaction data from this PDF.</span></div>';
-            area.style.display = 'block';
+            var alertEl = document.getElementById('errorAlert');
+            alertEl.classList.remove('d-none');
+            alertEl.classList.add('show');
+            setTimeout(function() {
+                var bsAlert = new bootstrap.Alert(alertEl);
+                bsAlert.close();
+            }, 6000);
         }
         {% endif %}
     });
