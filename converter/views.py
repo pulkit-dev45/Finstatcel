@@ -102,7 +102,7 @@ def upload_statement(request):
                 with concurrent.futures.ThreadPoolExecutor() as executor:
                     future = executor.submit(parse_statement_pdf, pdf_path, bank)
                     try:
-                        df = future.result(timeout=45)
+                        df = future.result(timeout=settings.PDF_PROCESSING_TIMEOUT)
                     except concurrent.futures.TimeoutError:
                         logger.error("PDF parsing timed out")
                         os.remove(pdf_path)
