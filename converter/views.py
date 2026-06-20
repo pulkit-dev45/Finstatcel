@@ -45,7 +45,7 @@ def register(request):
 
 @login_required
 def profile(request):
-    total_conversions = StatementUpload.objects.filter(user=request.user).count()
+    total_conversions = StatementUpload.objects.filter(user=request.user, processed=True, excel_file__isnull=False).count()
     return render(request, 'converter/profile.html', {'total_conversions': total_conversions})
 
 
@@ -156,24 +156,52 @@ def _process_pdf_background(upload_id, bank, password=None):
 @login_required
 def upload_statement(request):
     needs_password = False
+    existing_upload_id = None
+
     if request.method == 'POST':
+        upload_id = request.POST.get('upload_id')
+
+        if upload_id:
+            upload = get_object_or_404(StatementUpload, pk=upload_id, user=request.user)
+            bank = request.POST.get('bank_name', 'auto')
+            password = request.POST.get('pdf_password', '') or None
+
+            upload.processing = True
+            upload.save()
+
+            thread = threading.Thread(
+                target=_process_pdf_background,
+                args=(upload.pk, bank),
+                kwargs={'password': password},
+                daemon=True
+            )
+            thread.start()
+
+            return render(request, 'converter/upload.html', {
+                'form': StatementUploadForm(),
+                'processing': True,
+                'upload_id': upload.pk,
+            })
+
         form = StatementUploadForm(request.POST, request.FILES)
         if form.is_valid():
             bank = form.cleaned_data.get('bank_name', 'auto')
             password = form.cleaned_data.get('pdf_password', '') or None
 
             upload = StatementUpload(user=request.user, pdf_file=form.cleaned_data['pdf_file'])
-            upload.processing = True
             upload.save()
 
             pdf_path = upload.pdf_file.path
             if password is None and is_pdf_encrypted(pdf_path):
-                upload.delete()
-                form.add_error('pdf_file', 'This PDF is password-protected. Please enter the password.')
+                form.add_error('pdf_password', 'This PDF is password-protected. Enter the password to unlock it.')
                 return render(request, 'converter/upload.html', {
                     'form': form,
                     'needs_password': True,
+                    'existing_upload_id': upload.pk,
                 })
+
+            upload.processing = True
+            upload.save()
 
             thread = threading.Thread(
                 target=_process_pdf_background,
@@ -191,7 +219,11 @@ def upload_statement(request):
     else:
         form = StatementUploadForm()
 
-    return render(request, 'converter/upload.html', {'form': form, 'needs_password': needs_password})
+    return render(request, 'converter/upload.html', {
+        'form': form,
+        'needs_password': needs_password,
+        'existing_upload_id': existing_upload_id,
+    })
 
 
 @login_required

@@ -95,7 +95,17 @@
         <div class="card-body p-4">
             <form method="post" enctype="multipart/form-data" id="uploadForm">
                 {% csrf_token %}
-                <div class="mb-4">
+                {% if existing_upload_id %}
+                <input type="hidden" name="upload_id" value="{{ existing_upload_id }}">
+                {% endif %}
+
+                {% if form.pdf_password.errors %}
+                <div class="alert alert-danger py-2 small d-flex align-items-center gap-2">
+                    <i class="bi bi-lock-fill"></i>
+                    <span>{{ form.pdf_password.errors.0 }}</span>
+                </div>
+                {% endif %}
+                <div class="mb-4 {% if existing_upload_id %}d-none{% endif %}">
                     <label class="form-label"><i class="bi bi-upload me-1"></i>Upload PDF Statement</label>
                     <div id="uploadZone" class="upload-zone">
                         <div class="upload-zone-icon">📂</div>
@@ -107,13 +117,22 @@
                         <div class="text-danger mt-2 small">{{ form.pdf_file.errors }}</div>
                     {% endif %}
                 </div>
+                {% if existing_upload_id %}
+                <div class="alert alert-info py-2 small d-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-pdf"></i>
+                    <span>PDF already uploaded. Just enter the password below.</span>
+                </div>
+                {% endif %}
 
-                <div class="mb-4">
+                <div class="mb-4 {% if existing_upload_id %}d-none{% endif %}">
                     <label for="{{ form.bank_name.id_for_label }}" class="form-label">
                         <i class="bi bi-building me-1"></i>Select Your Bank
                     </label>
                     {{ form.bank_name }}
                 </div>
+                {% if existing_upload_id %}
+                <input type="hidden" name="bank_name" value="{{ form.bank_name.value|default:'auto' }}">
+                {% endif %}
 
                 <div id="passwordField" class="mb-4 {% if not needs_password %}d-none{% endif %}">
                     <label for="{{ form.pdf_password.id_for_label }}" class="form-label">
