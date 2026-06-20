@@ -11,6 +11,7 @@ class StatementUpload(models.Model):
     processed = models.BooleanField(default=False)
     processing = models.BooleanField(default=False)
     row_count = models.IntegerField(null=True, blank=True)
+    progress = models.IntegerField(default=0)
     preview_json = models.TextField(null=True, blank=True)
 
     def filename(self):

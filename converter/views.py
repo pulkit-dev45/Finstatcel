@@ -95,17 +95,28 @@ def _process_pdf_background(upload_id, bank, password=None):
         pdf_path = upload.pdf_file.path
         logger.info(f"Background processing PDF ({bank}): {pdf_path}")
 
+        upload.progress = 10
+        upload.save()
+
         df = parse_statement_pdf(pdf_path, bank, password=password)
 
         if df.empty:
             logger.warning(f"No data extracted for upload {upload_id}")
+            upload.progress = 0
             upload.processing = False
             upload.save()
             return
 
+        upload.progress = 70
+        upload.row_count = len(df)
+        upload.save()
+
         excel_filename = f"{upload.filename()}_converted.xlsx"
         excel_path = os.path.join(settings.MEDIA_ROOT, 'exports', excel_filename)
         os.makedirs(os.path.dirname(excel_path), exist_ok=True)
+
+        upload.progress = 80
+        upload.save()
 
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -123,8 +134,10 @@ def _process_pdf_background(upload_id, bank, password=None):
         _style_excel(ws)
         wb.save(excel_path)
 
+        upload.progress = 90
+        upload.save()
+
         upload.excel_file.name = f'exports/{excel_filename}'
-        upload.row_count = len(df)
 
         raw_preview = df.head(15).to_dict('records')
         preview_rows = []
@@ -139,6 +152,7 @@ def _process_pdf_background(upload_id, bank, password=None):
         upload.preview_json = json.dumps(preview_rows)
         upload.processed = True
         upload.processing = False
+        upload.progress = 100
         upload.save()
 
         logger.info(f"Background processing complete for upload {upload_id}: {len(df)} rows")
@@ -148,6 +162,7 @@ def _process_pdf_background(upload_id, bank, password=None):
         try:
             upload = StatementUpload.objects.get(pk=upload_id)
             upload.processing = False
+            upload.progress = 0
             upload.save()
         except Exception:
             pass
@@ -234,6 +249,7 @@ def check_status(request, pk):
         'processed': upload.processed,
         'has_excel': bool(upload.excel_file),
         'row_count': upload.row_count,
+        'progress': upload.progress,
         'preview_rows': upload.get_preview_rows(),
     }
     if upload.processed and upload.excel_file:

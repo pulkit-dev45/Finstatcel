@@ -164,10 +164,13 @@
             <span>Processing PDF...</span>
             <small class="text-warning fw-bold ms-auto">⚠ Do not close this tab</small>
         </div>
-        <div class="card-body text-center py-5">
-            <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status"></div>
-            <p class="text-muted mb-0">Your PDF is being processed. Please wait...</p>
-            <small class="text-muted">This may take a minute for large statements.</small>
+        <div class="card-body text-center py-4">
+            <div class="progress mb-3" style="height: 8px; background: var(--overlay-subtle);">
+                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                     style="width: 10%; background: var(--accent-gradient);" role="progressbar"></div>
+            </div>
+            <p class="text-muted mb-1" id="progressMsg">Extracting transactions...</p>
+            <small class="text-muted" id="progressCount"></small>
         </div>
     </div>
     {% endif %}
@@ -298,10 +301,25 @@
 
         {% if processing %}
         var uploadId = {{ upload_id }};
+        var progressBar = document.getElementById('progressBar');
+        var progressMsg = document.getElementById('progressMsg');
+        var progressCount = document.getElementById('progressCount');
         var pollInterval = setInterval(function() {
             fetch('/status/' + uploadId + '/')
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
+                    if (progressBar) progressBar.style.width = (data.progress || 10) + '%';
+                    if (data.progress < 70) {
+                        progressMsg.textContent = 'Extracting transactions...';
+                        if (data.row_count) {
+                            progressCount.textContent = data.row_count + ' rows found';
+                        }
+                    } else if (data.progress < 90) {
+                        progressMsg.textContent = 'Creating Excel file...';
+                        progressCount.textContent = (data.row_count || 0) + ' rows processed';
+                    } else if (data.progress < 100) {
+                        progressMsg.textContent = 'Finalizing...';
+                    }
                     if (!data.processing && data.processed) {
                         clearInterval(pollInterval);
                         showResults(data);
@@ -311,7 +329,7 @@
                     }
                 })
                 .catch(function() {});
-        }, 3000);
+        }, 2000);
 
         function showResults(data) {
             document.getElementById('processingCard').style.display = 'none';
