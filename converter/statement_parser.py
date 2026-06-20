@@ -1,6 +1,7 @@
 import re
 import logging
 import pdfplumber
+from pdfplumber.utils.exceptions import PdfminerException
 from pdfminer.pdfdocument import PDFEncryptionError
 import pandas as pd
 
@@ -10,7 +11,7 @@ def is_pdf_encrypted(pdf_path):
     try:
         with pdfplumber.open(pdf_path) as _:
             return False
-    except PDFEncryptionError:
+    except (PDFEncryptionError, PdfminerException):
         return True
     except Exception:
         return False
