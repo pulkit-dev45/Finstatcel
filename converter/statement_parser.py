@@ -178,60 +178,90 @@ def _find_header_row(table, bank):
     return None, None
 
 
-def try_table(pdf_path, bank, password=None):
-    with pdfplumber.open(pdf_path, password=password) as pdf:
-        for page in pdf.pages:
-            for table in page.extract_tables():
-                if len(table) < 2:
-                    continue
-                header_row_idx, mapping = _find_header_row(table, bank)
-                if mapping is None:
-                    continue
-                wi = mapping.get('withdrawal', -1)
-                depi = mapping.get('deposit', -1)
-                ami = mapping.get('amount', -1)
-                has_w = wi >= 0
-                has_d = depi >= 0
-                combined_drcr = ami >= 0 and (wi == depi or has_w != has_d)
+def parse_statement_pdf(pdf_path, bank='auto', password=None):
+    table_rows = None
+    text_rows = None
 
-                rows = []
-                for row in table[header_row_idx + 1:]:
-                    try:
-                        di = mapping['date']
-                        d = str(row[di]).strip() if di < len(row) else ''
-                        pi = mapping.get('particulars', -1)
-                        p = str(row[pi]).strip() if 0 <= pi < len(row) else ''
-                        bi = mapping['balance']
-                        b = str(row[bi]).strip() if bi < len(row) else ''
-                    except (IndexError, KeyError):
-                        continue
-                    d = re.sub(r'(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}).*', r'\1', d)
-                    if not re.match(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', d):
-                        continue
-                    p = p.replace('\n', ', ').replace('\r', ', ')
-                    p = re.sub(r'\s+', ' ', p).strip()
-                    if combined_drcr:
-                        raw_amt = str(row[ami]).strip() if ami < len(row) else ''
-                        raw_flag = str(row[wi]).strip().lower() if wi < len(row) else ''
-                        av = _parse_num(raw_amt) or 0
-                        wv = av if raw_flag in ('dr', 'd') else 0
-                        dv = av if raw_flag in ('cr', 'c') else 0
-                    else:
-                        w = str(row[wi]).strip() if 0 <= wi < len(row) else ''
-                        dep = str(row[depi]).strip() if 0 <= depi < len(row) else ''
-                        wv = _parse_num(w) or 0
-                        dv = _parse_num(dep) or 0
-                    bv = _parse_num(b) or 0
-                    if bv == 0 and wv == 0 and dv == 0:
-                        continue
-                    rows.append({'Date': d, 'Particulars': p,
-                                 'Withdrawn amount': wv, 'Deposit amount': dv, 'Balance': bv})
-                if len(rows) >= 3:
-                    return rows
+    with pdfplumber.open(pdf_path, password=password) as pdf:
+        if bank not in TEXT_ONLY_BANKS:
+            table_rows = _try_tables_from_pdf(pdf, bank)
+
+        transactions = _try_text_from_pdf(pdf)
+
+    if table_rows:
+        logger.info(f"Table extraction ({bank}): {len(table_rows)} rows")
+
+    if transactions:
+        text_rows = _resolve_amounts(transactions)
+        if text_rows:
+            logger.info(f"Text extraction ({bank}): {len(text_rows)} rows")
+
+    if table_rows and text_rows:
+        chosen = table_rows if len(table_rows) >= len(text_rows) else text_rows
+        logger.info(f"Using {'table' if chosen is table_rows else 'text'} extraction ({len(chosen)} rows)")
+        return _make_df(chosen)
+    elif table_rows:
+        return _make_df(table_rows)
+    elif text_rows:
+        return _make_df(text_rows)
+
+    logger.warning(f"No transaction data found ({bank})")
+    return pd.DataFrame(columns=['Date', 'Particulars', 'Withdrawn amount', 'Deposit amount', 'Balance'])
+
+
+def _try_tables_from_pdf(pdf, bank):
+    for page in pdf.pages:
+        for table in page.extract_tables():
+            if len(table) < 2:
+                continue
+            header_row_idx, mapping = _find_header_row(table, bank)
+            if mapping is None:
+                continue
+            wi = mapping.get('withdrawal', -1)
+            depi = mapping.get('deposit', -1)
+            ami = mapping.get('amount', -1)
+            has_w = wi >= 0
+            has_d = depi >= 0
+            combined_drcr = ami >= 0 and (wi == depi or has_w != has_d)
+
+            rows = []
+            for row in table[header_row_idx + 1:]:
+                try:
+                    di = mapping['date']
+                    d = str(row[di]).strip() if di < len(row) else ''
+                    pi = mapping.get('particulars', -1)
+                    p = str(row[pi]).strip() if 0 <= pi < len(row) else ''
+                    bi = mapping['balance']
+                    b = str(row[bi]).strip() if bi < len(row) else ''
+                except (IndexError, KeyError):
+                    continue
+                d = re.sub(r'(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}).*', r'\1', d)
+                if not re.match(r'\d{1,2}[/-]\d{1,2}[/-]\d{2,4}', d):
+                    continue
+                p = p.replace('\n', ', ').replace('\r', ', ')
+                p = re.sub(r'\s+', ' ', p).strip()
+                if combined_drcr:
+                    raw_amt = str(row[ami]).strip() if ami < len(row) else ''
+                    raw_flag = str(row[wi]).strip().lower() if wi < len(row) else ''
+                    av = _parse_num(raw_amt) or 0
+                    wv = av if raw_flag in ('dr', 'd') else 0
+                    dv = av if raw_flag in ('cr', 'c') else 0
+                else:
+                    w = str(row[wi]).strip() if 0 <= wi < len(row) else ''
+                    dep = str(row[depi]).strip() if 0 <= depi < len(row) else ''
+                    wv = _parse_num(w) or 0
+                    dv = _parse_num(dep) or 0
+                bv = _parse_num(b) or 0
+                if bv == 0 and wv == 0 and dv == 0:
+                    continue
+                rows.append({'Date': d, 'Particulars': p,
+                             'Withdrawn amount': wv, 'Deposit amount': dv, 'Balance': bv})
+            if len(rows) >= 3:
+                return rows
     return None
 
 
-# ── TEXT EXTRACTION ───────────────────────────────────────────────────
+# ── TEXT EXTRACTION HELPERS ────────────────────────────────────────────
 
 def _get_numbers(text):
     text = re.sub(r'\d{8,}', ' ', text)
@@ -263,13 +293,12 @@ SKIP_LINES = {
 }
 
 
-def try_text(pdf_path, password=None):
+def _try_text_from_pdf(pdf):
     lines = []
-    with pdfplumber.open(pdf_path, password=password) as pdf:
-        for page in pdf.pages:
-            t = page.extract_text()
-            if t:
-                lines.extend(t.split('\n'))
+    for page in pdf.pages:
+        t = page.extract_text()
+        if t:
+            lines.extend(t.split('\n'))
 
     transactions = []
     prev_bal = None
@@ -277,10 +306,39 @@ def try_text(pdf_path, password=None):
 
     for line in lines:
         raw = line.strip()
-        if not raw or _is_header(raw):
+        if not raw:
             continue
 
         low = raw.lower()
+        m = DATE_AT_START.match(raw)
+
+        if m:
+            date = m.group(1)
+            rest = m.group(2)
+            nums = _get_numbers(rest)
+
+            if len(nums) >= 2:
+                balance = nums[-1]
+                amounts = nums[:-1]
+
+                transactions.append({
+                    'date': date,
+                    'parts': [],
+                    'balance': balance,
+                    'amounts': amounts,
+                    'prev_bal': prev_bal,
+                    'drcr': drcr_flag,
+                })
+                prev_bal = balance
+                drcr_flag = None
+
+                parts_text = rest
+                parts_text = re.sub(r'[\d,]+(?:\.\d+)?', ' ', parts_text)
+                parts_text = re.sub(r'\s+', ' ', parts_text).strip()
+                if parts_text:
+                    transactions[-1]['parts'].append(parts_text)
+                continue
+
         if low in SKIP_LINES:
             if 'credit' in low and 'trxn' in low:
                 drcr_flag = 'credit'
@@ -288,40 +346,11 @@ def try_text(pdf_path, password=None):
                 drcr_flag = 'debit'
             continue
 
-        m = DATE_AT_START.match(raw)
-        if not m:
-            if transactions:
-                transactions[-1]['parts'].append(raw)
+        if _is_header(raw):
             continue
 
-        date = m.group(1)
-        rest = m.group(2)
-        nums = _get_numbers(rest)
-
-        if len(nums) < 2:
-            if transactions:
-                transactions[-1]['parts'].append(raw)
-            continue
-
-        balance = nums[-1]
-        amounts = nums[:-1]
-
-        transactions.append({
-            'date': date,
-            'parts': [],
-            'balance': balance,
-            'amounts': amounts,
-            'prev_bal': prev_bal,
-            'drcr': drcr_flag,
-        })
-        prev_bal = balance
-        drcr_flag = None
-
-        parts_text = rest
-        parts_text = re.sub(r'[\d,]+(?:\.\d+)?', ' ', parts_text)
-        parts_text = re.sub(r'\s+', ' ', parts_text).strip()
-        if parts_text:
-            transactions[-1]['parts'].append(parts_text)
+        if transactions:
+            transactions[-1]['parts'].append(raw)
 
     return transactions
 
@@ -401,19 +430,30 @@ def _resolve_amounts(transactions):
 
 def parse_statement_pdf(pdf_path, bank='auto', password=None):
     table_rows = None
-    if bank not in TEXT_ONLY_BANKS:
-        table_rows = try_table(pdf_path, bank, password=password)
+    text_rows = None
+
+    with pdfplumber.open(pdf_path, password=password) as pdf:
+        if bank not in TEXT_ONLY_BANKS:
+            table_rows = _try_tables_from_pdf(pdf, bank)
+
+        transactions = _try_text_from_pdf(pdf)
+
     if table_rows:
         logger.info(f"Table extraction ({bank}): {len(table_rows)} rows")
-        return _make_df(table_rows)
 
-    logger.info(f"No table found for '{bank}', trying text extraction")
-    transactions = try_text(pdf_path, password=password)
     if transactions:
-        rows = _resolve_amounts(transactions)
-        if rows:
-            logger.info(f"Text extraction ({bank}): {len(rows)} rows")
-            return _make_df(rows)
+        text_rows = _resolve_amounts(transactions)
+        if text_rows:
+            logger.info(f"Text extraction ({bank}): {len(text_rows)} rows")
+
+    if table_rows and text_rows:
+        chosen = table_rows if len(table_rows) >= len(text_rows) else text_rows
+        logger.info(f"Using {'table' if chosen is table_rows else 'text'} extraction ({len(chosen)} rows)")
+        return _make_df(chosen)
+    elif table_rows:
+        return _make_df(table_rows)
+    elif text_rows:
+        return _make_df(text_rows)
 
     logger.warning(f"No transaction data found ({bank})")
     return pd.DataFrame(columns=['Date', 'Particulars', 'Withdrawn amount', 'Deposit amount', 'Balance'])
