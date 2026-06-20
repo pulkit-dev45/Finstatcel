@@ -93,7 +93,7 @@
         </div>
 
         <div class="card-body p-4">
-            <form method="post" enctype="multipart/form-data" id="uploadForm">
+            <form method="post" enctype="multipart/form-data" id="uploadForm" {% if existing_upload_id %}novalidate{% endif %}>
                 {% csrf_token %}
                 {% if existing_upload_id %}
                 <input type="hidden" name="upload_id" value="{{ existing_upload_id }}">
@@ -241,7 +241,8 @@
 
         if (uploadForm) {
             uploadForm.addEventListener('submit', function() {
-                if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                var hasUploadId = document.querySelector('input[name=\"upload_id\"]');
+                if (hasUploadId || (fileInput && fileInput.files && fileInput.files.length > 0)) {
                     submitText.innerHTML = 'Processing PDF...';
                     submitSpinner.classList.remove('d-none');
                 }
