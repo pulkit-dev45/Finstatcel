@@ -1,9 +1,20 @@
 import re
 import logging
 import pdfplumber
+from pdfminer.pdfdocument import PDFEncryptionError
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+def is_pdf_encrypted(pdf_path):
+    try:
+        with pdfplumber.open(pdf_path) as _:
+            return False
+    except PDFEncryptionError:
+        return True
+    except Exception:
+        return False
+
 
 DATE_AT_START = re.compile(
     r'^(?:\d{1,3}\s+)?(\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}|\d{1,2}[./-][A-Za-z]{3,9}[./-]\d{2,4})\s+(.*)',
@@ -166,8 +177,8 @@ def _find_header_row(table, bank):
     return None, None
 
 
-def try_table(pdf_path, bank):
-    with pdfplumber.open(pdf_path) as pdf:
+def try_table(pdf_path, bank, password=None):
+    with pdfplumber.open(pdf_path, password=password) as pdf:
         for page in pdf.pages:
             for table in page.extract_tables():
                 if len(table) < 2:
@@ -251,9 +262,9 @@ SKIP_LINES = {
 }
 
 
-def try_text(pdf_path):
+def try_text(pdf_path, password=None):
     lines = []
-    with pdfplumber.open(pdf_path) as pdf:
+    with pdfplumber.open(pdf_path, password=password) as pdf:
         for page in pdf.pages:
             t = page.extract_text()
             if t:
@@ -387,16 +398,16 @@ def _resolve_amounts(transactions):
 
 # ── MAIN ENTRY POINT ──────────────────────────────────────────────────
 
-def parse_statement_pdf(pdf_path, bank='auto'):
+def parse_statement_pdf(pdf_path, bank='auto', password=None):
     table_rows = None
     if bank not in TEXT_ONLY_BANKS:
-        table_rows = try_table(pdf_path, bank)
+        table_rows = try_table(pdf_path, bank, password=password)
     if table_rows:
         logger.info(f"Table extraction ({bank}): {len(table_rows)} rows")
         return _make_df(table_rows)
 
     logger.info(f"No table found for '{bank}', trying text extraction")
-    transactions = try_text(pdf_path)
+    transactions = try_text(pdf_path, password=password)
     if transactions:
         rows = _resolve_amounts(transactions)
         if rows:

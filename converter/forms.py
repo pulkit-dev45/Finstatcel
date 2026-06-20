@@ -34,6 +34,15 @@ class StatementUploadForm(forms.Form):
         label='Upload PDF statement',
         widget=forms.FileInput(attrs={'accept': '.pdf', 'class': 'form-control'})
     )
+    pdf_password = forms.CharField(
+        required=False,
+        label='PDF Password',
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter PDF password (if locked)',
+            'autocomplete': 'off',
+        })
+    )
 
 
 class RegisterForm(UserCreationForm):

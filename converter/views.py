@@ -14,7 +14,7 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
 from .models import StatementUpload
-from .statement_parser import parse_statement_pdf
+from .statement_parser import parse_statement_pdf, is_pdf_encrypted
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,8 @@ def register(request):
 
 @login_required
 def profile(request):
-    return render(request, 'converter/profile.html')
+    total_conversions = StatementUpload.objects.filter(user=request.user).count()
+    return render(request, 'converter/profile.html', {'total_conversions': total_conversions})
 
 
 COLUMN_WIDTHS = {
@@ -88,13 +89,13 @@ def _style_excel(ws):
     ws.row_dimensions[1].height = 25
 
 
-def _process_pdf_background(upload_id, bank):
+def _process_pdf_background(upload_id, bank, password=None):
     try:
         upload = StatementUpload.objects.get(pk=upload_id)
         pdf_path = upload.pdf_file.path
         logger.info(f"Background processing PDF ({bank}): {pdf_path}")
 
-        df = parse_statement_pdf(pdf_path, bank)
+        df = parse_statement_pdf(pdf_path, bank, password=password)
 
         if df.empty:
             logger.warning(f"No data extracted for upload {upload_id}")
@@ -154,17 +155,30 @@ def _process_pdf_background(upload_id, bank):
 
 @login_required
 def upload_statement(request):
+    needs_password = False
     if request.method == 'POST':
         form = StatementUploadForm(request.POST, request.FILES)
         if form.is_valid():
             bank = form.cleaned_data.get('bank_name', 'auto')
-            upload = StatementUpload(pdf_file=form.cleaned_data['pdf_file'])
+            password = form.cleaned_data.get('pdf_password', '') or None
+
+            upload = StatementUpload(user=request.user, pdf_file=form.cleaned_data['pdf_file'])
             upload.processing = True
             upload.save()
+
+            pdf_path = upload.pdf_file.path
+            if password is None and is_pdf_encrypted(pdf_path):
+                upload.delete()
+                form.add_error('pdf_file', 'This PDF is password-protected. Please enter the password.')
+                return render(request, 'converter/upload.html', {
+                    'form': form,
+                    'needs_password': True,
+                })
 
             thread = threading.Thread(
                 target=_process_pdf_background,
                 args=(upload.pk, bank),
+                kwargs={'password': password},
                 daemon=True
             )
             thread.start()
@@ -177,7 +191,7 @@ def upload_statement(request):
     else:
         form = StatementUploadForm()
 
-    return render(request, 'converter/upload.html', {'form': form})
+    return render(request, 'converter/upload.html', {'form': form, 'needs_password': needs_password})
 
 
 @login_required

@@ -1,8 +1,10 @@
 import json
 import os
+from django.conf import settings
 from django.db import models
 
 class StatementUpload(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True)
     pdf_file = models.FileField(upload_to='uploads/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
     excel_file = models.FileField(upload_to='exports/', blank=True, null=True)

@@ -14,7 +14,7 @@
 
         <div class="card">
             <div class="card-body p-4">
-                <form method="post">
+                <form method="post" id="loginForm">
                     {% csrf_token %}
                     {% if form.non_field_errors %}
                     <div class="alert alert-danger py-2 small">
@@ -38,8 +38,9 @@
                     </div>
 
                     <div class="d-grid mt-4">
-                        <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="bi bi-box-arrow-in-right me-2"></i>Login
+                        <button type="submit" class="btn btn-primary btn-lg" id="loginBtn">
+                            <span id="loginBtnText"><i class="bi bi-box-arrow-in-right me-2"></i>Login</span>
+                            <span id="loginBtnSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
                         </button>
                     </div>
                 </form>
@@ -55,4 +56,17 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.getElementById('loginForm').addEventListener('submit', function() {
+    var btn = document.getElementById('loginBtn');
+    var text = document.getElementById('loginBtnText');
+    var spinner = document.getElementById('loginBtnSpinner');
+    btn.disabled = true;
+    text.classList.add('d-none');
+    spinner.classList.remove('d-none');
+});
+</script>
 {% endblock %}

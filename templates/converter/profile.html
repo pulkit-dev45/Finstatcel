@@ -15,7 +15,7 @@
             <p class="text-muted small">Member since {{ user.date_joined|date:"F Y" }}</p>
         </div>
 
-        <div class="card">
+        <div class="card mb-3">
             <div class="card-body p-4">
                 <div class="d-flex align-items-center mb-3 pb-3 border-bottom" style="border-color: var(--border-subtle) !important;">
                     <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(37,99,235,0.1); display: flex; align-items: center; justify-content: center; color: var(--accent-blue); font-size: 1.2rem;">
@@ -33,6 +33,15 @@
                     <div class="ms-3">
                         <div class="small text-muted text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.5px;">Email</div>
                         <div class="fw-semibold" style="color:rgb(230, 224, 224);">{{ user.email|default:"Not provided" }}</div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center mb-3 pb-3 border-bottom" style="border-color: var(--border-subtle) !important;">
+                    <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(16,185,129,0.1); display: flex; align-items: center; justify-content: center; color: var(--accent-emerald); font-size: 1.2rem;">
+                        <i class="bi bi-file-earmark-spreadsheet"></i>
+                    </div>
+                    <div class="ms-3">
+                        <div class="small text-muted text-uppercase" style="font-size: 0.7rem; letter-spacing: 0.5px;">Total Conversions</div>
+                        <div class="fw-semibold" style="color:rgb(230, 224, 224);">{{ total_conversions }}</div>
                     </div>
                 </div>
                 <div class="d-flex align-items-center">
